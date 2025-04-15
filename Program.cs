@@ -11,8 +11,19 @@ public interface IRbTree<T> where T : IComparable<T>
 	T GetRightChildValue(T parent);
 }
 
+public interface INodeInserter<T> where T : IComparable<T>
+{
+	RbTree<T>.Node Insert(RbTree<T>.Node root, RbTree<T>.Node newNode, out bool inserted);
+}
+
 public class RbTree<T> : IRbTree<T> where T : IComparable<T>
 {
+	private readonly INodeInserter<T> _inserter;
+	public RbTree() : this(new DefaultInserter<T>()) { }
+	public RbTree(INodeInserter<T> inserter)
+	{
+		_inserter = inserter;
+	}
 	public enum NodeColor { Red, Black }
 
 	public T GetLeftChildValue(T parent)
@@ -62,14 +73,13 @@ public class RbTree<T> : IRbTree<T> where T : IComparable<T>
 			throw new InvalidOperationException("Tree is empty");
 		}
 
-		// Ищем узел с указанным значением
 		Node current = _root;
 		while (current != null)
 		{
 			int comparison = item.CompareTo(current.Data);
 			if (comparison == 0)
 			{
-				return current.Color; // Нашли узел - возвращаем его цвет
+				return current.Color;
 			}
 			current = comparison < 0 ? current.Left : current.Right;
 		}
@@ -84,14 +94,13 @@ public class RbTree<T> : IRbTree<T> where T : IComparable<T>
 			throw new InvalidOperationException("Tree is empty");
 		}
 
-		// Ищем узел с указанным значением
 		Node current = _root;
 		while (current != null)
 		{
 			int comparison = item.CompareTo(current.Data);
 			if (comparison == 0)
 			{
-				return current.Data; // Нашли узел - возвращаем его value
+				return current.Data;
 			}
 			current = comparison < 0 ? current.Left : current.Right;
 		}
@@ -120,36 +129,14 @@ public class RbTree<T> : IRbTree<T> where T : IComparable<T>
 	public void Insert(T item)
 	{
 		var newNode = new Node(item);
-		_root = Insert(_root, newNode);
-		if (newNode.Parent != null || _root == newNode)
+		bool inserted;
+
+		_root = _inserter.Insert(_root, newNode, out inserted);
+		if (inserted)
 		{
 			FixViolations(newNode);
 			_count++;
 		}
-	}
-
-	private Node Insert(Node root, Node newNode)
-	{
-		if (root == null)
-			return newNode;
-		int comparison = newNode.Data.CompareTo(root.Data);
-
-
-		if (comparison < 0)
-		{
-			root.Left = Insert(root.Left, newNode);
-			if (root.Left != null) // Добавляем проверку на null
-				root.Left.Parent = root;
-		}
-		else if (comparison > 0)
-		{
-			root.Right = Insert(root.Right, newNode);
-			if (root.Right != null) 
-				root.Right.Parent = root;
-		}
-		// Если comparison == 0 значит элемент дубликат
-
-		return root;
 	}
 
 	private void FixViolations(Node node)
@@ -290,19 +277,44 @@ public class RbTree<T> : IRbTree<T> where T : IComparable<T>
 	}
 }
 
+public class DefaultInserter<T> : INodeInserter<T> where T : IComparable<T>
+{
+	public RbTree<T>.Node Insert(RbTree<T>.Node root, RbTree<T>.Node newNode, out bool inserted)
+	{
+		inserted = false;
+		if (root == null)
+		{
+			inserted = true;
+			return newNode;
+		}
+
+		int comparison = newNode.Data.CompareTo(root.Data);
+		if (comparison < 0)
+		{
+			root.Left = Insert(root.Left, newNode, out inserted);
+			if (inserted) root.Left.Parent = root;
+		}
+		else if (comparison > 0)
+		{
+			root.Right = Insert(root.Right, newNode, out inserted);
+			if (inserted) root.Right.Parent = root;
+		}
+
+		return root;
+	}
+}
+
 public static class RbTreeExtensions
 {
 	public static IEnumerable<T> Select<T>(this IEnumerable<T> sequence, Func<T, bool> condition) where T : IComparable<T>
 	{
 		var tree = new RbTree<T>();
 
-		// Построение дерева из последовательности
 		foreach (var item in sequence)
 		{
 			tree.Insert(item);
 		}
 
-		// Выборка из дерева
 		return tree.Select(condition);
 	}
 }
@@ -311,11 +323,11 @@ class Program
 {
 	static void Main(string[] args)
 	{
-		var testData = Enumerable.Range(0, 500000000).Select(x => x * 2);
+		var testData = Enumerable.Range(0, 50).Select(x => x * 2);
 
-		Console.WriteLine("Starting filtering...");
+		Console.WriteLine("Starting filtering.hhh..");
 
-		var filtered = testData.Select(x => x > 490000000 && x % 2 == 0);
+		var filtered = testData.Select(x => x > 49 && x % 2 == 0);
 
 		Console.WriteLine("Results:");
 		foreach (var item in filtered.Take(10))

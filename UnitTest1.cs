@@ -6,6 +6,7 @@ using RedBlackTree2;
 
 namespace RedBlackTree2.Tests
 {
+
 	public class InsertElements
 	{
 		[SetUp]
@@ -206,45 +207,144 @@ namespace RedBlackTree2.Tests
 	public class MOQ_Tests
 	{
 		[Test]
-		public void Insert_Called_Once_With_Expected_Value()
+		public void Should_Not_Increase_Count_When_Inserter_Returns_Duplicate()
 		{
-			var mock = new Mock<IRbTree<int>>();
+			var mockInserter = new Mock<INodeInserter<int>>();
+			var tree = new RbTree<int>(mockInserter.Object);
+			bool insertedFalse = false;
+			bool insertedTrue = true;
 
-			mock.Object.Insert(42);
+			mockInserter.Setup(x => x.Insert(It.IsAny<RbTree<int>.Node>(), It.IsAny<RbTree<int>.Node>(), out insertedFalse))
+					   .Returns((RbTree<int>.Node root, RbTree<int>.Node n, out bool ins) =>
+					   {
+						   ins = false; // Симулируем дубликат
+						   return root ?? n;
+					   });
 
-			mock.Verify(tree => tree.Insert(42), Times.Once);
+			// Все инсерты теперь считаются дубликатами
+			//All insert are duplicates
+			tree.Insert(10); 
+			tree.Insert(10); 
+			tree.Insert(10); 
+
+
+			Assert.AreEqual(1, tree.Select(x => true).Count());
 		}
-
 		[Test]
-		public void Select_Returns_Expected_Filtered_Values()
+		public void Select_Should_Filter_Nodes_Correctly_On_MOQ_Tree()
 		{
-			var mock = new Mock<IRbTree<int>>();
-			mock.Setup(tree => tree.Select(It.IsAny<Func<int, bool>>()))
-				.Returns<Func<int, bool>>(predicate => new List<int> { 1, 2, 3, 4, 5 }.Where(predicate));
+			var mockInserter = new Mock<INodeInserter<int>>();
+			bool inserted;
+			var tree = new RbTree<int>(mockInserter.Object);
+			var root = new RbTree<int>.Node(10)
+			{
+				Color = RbTree<int>.NodeColor.Black,
+				Left = new RbTree<int>.Node(5)
+				{
+					Color = RbTree<int>.NodeColor.Red,
+					Left = new RbTree<int>.Node(3),
+				},
+				Right = new RbTree<int>.Node(15)
+				{
+					Color = RbTree<int>.NodeColor.Red,
+					Left = new RbTree<int>.Node(12),
+				}
+			};
+			// При вызове Insert возвращается наше МОК-дерево
+			mockInserter.Setup(x => x.Insert(
+				It.IsAny<RbTree<int>.Node>(),
+				It.IsAny<RbTree<int>.Node>(),
+				out inserted))
+				.Returns(root);
 
-			var result = mock.Object.Select(x => x > 2).ToList();
+			tree.Insert(10);
 
-			Assert.AreEqual(new List<int> { 3, 4, 5 }, result);
+			var result = tree.Select(x => x > 5).ToList();
+
+			Assert.AreEqual(3, result.Count); // 10, 12, 15, 
+			Assert.Contains(10, result);
+			Assert.Contains(12, result);
+			Assert.Contains(15, result);
 		}
-
 		[Test]
-		public void GetLeftChildValue_Returns_Expected_Value()
+		public void Select_Returns_Empty_For_Non_Matching_Condition_On_MOQ_Tree()
 		{
-			var mock = new Mock<IRbTree<string>>();
-			mock.Setup(tree => tree.GetLeftChildValue("parent")).Returns("left-child");
+			var mockInserter = new Mock<INodeInserter<int>>();
+			bool inserted;
+			var tree = new RbTree<int>(mockInserter.Object);
+			var root = new RbTree<int>.Node(10)
+			{
+				Color = RbTree<int>.NodeColor.Black,
+				Left = new RbTree<int>.Node(5)
+				{
+					Color = RbTree<int>.NodeColor.Red,
+					Left = new RbTree<int>.Node(3),
+				},
+				Right = new RbTree<int>.Node(15)
+				{
+					Color = RbTree<int>.NodeColor.Red,
+					Left = new RbTree<int>.Node(12),
+				}
+			};
+			// При вызове Insert возвращается наше МОК-дерево
+			mockInserter.Setup(x => x.Insert(
+				It.IsAny<RbTree<int>.Node>(),
+				It.IsAny<RbTree<int>.Node>(),
+				out inserted))
+				.Returns(root);
 
-			var result = mock.Object.GetLeftChildValue("parent");
+			tree.Insert(10);
 
-			Assert.AreEqual("left-child", result);
+			var result = tree.Select(x => x > 50).ToList();
+
+			Assert.AreEqual(0, result.Count);
+			Assert.That(result, Is.Empty);
+
 		}
-
 		[Test]
-		public void GetRightChildValue_Throws_Exception_When_Not_Found()
+		public void Select_Should_Return_Elements_In_Correct_Order()
 		{
-			var mock = new Mock<IRbTree<int>>();
-			mock.Setup(tree => tree.GetRightChildValue(99)).Throws(new KeyNotFoundException("Right child not found"));
+			var mockInserter = new Mock<INodeInserter<int>>();
+			var tree = new RbTree<int>(mockInserter.Object);
 
-			Assert.Throws<KeyNotFoundException>(() => mock.Object.GetRightChildValue(99));
+			var root = new RbTree<int>.Node(4)
+			{
+				Left = new RbTree<int>.Node(2)
+				{
+					Left = new RbTree<int>.Node(1),
+					Right = new RbTree<int>.Node(3),
+					Color = RbTree<int>.NodeColor.Red
+				},
+				Right = new RbTree<int>.Node(6)
+				{
+					Left = new RbTree<int>.Node(5),
+					Right = new RbTree<int>.Node(7),
+					Color = RbTree<int>.NodeColor.Red
+				},
+				Color = RbTree<int>.NodeColor.Black
+			};
+
+			root.Left.Parent = root;
+			root.Right.Parent = root;
+			root.Left.Left.Parent = root.Left;
+			root.Left.Right.Parent = root.Left;
+			root.Right.Left.Parent = root.Right;
+			root.Right.Right.Parent = root.Right;
+
+			bool inserted;
+			mockInserter.Setup(x => x.Insert(It.IsAny<RbTree<int>.Node>(), It.IsAny<RbTree<int>.Node>(), out inserted))
+					   .Returns(root);
+
+			tree.Insert(4);
+
+			var result = tree.Select(x => true).ToList();
+
+			// проверяем порядок элементов (in-order traversal)
+			var expectedOrder = new[] { 1, 2, 3, 4, 5, 6, 7 };
+			CollectionAssert.AreEqual(expectedOrder, result,
+				"Elements should be returned in sorted order");
 		}
+
 	}
 }
+
